@@ -253,8 +253,52 @@ int file_remove(char *name)
 }
 
 int dir_make(char* name)
-{
-		printf("Not implemented yet.\n");
+{		int i;
+		
+		int inodeNum = search_cur_dir(name); 
+		if(inodeNum >= 0) {
+		
+				printf("Directory create failed:  %s exist.\n", name);
+				return -1;
+		}
+
+		if(curDir.numEntry + 1 >= (BLOCK_SIZE / sizeof(DirectoryEntry))) {
+				printf("Directory create failed: directory is full!\n");
+				return -1;
+		}
+
+
+		if(superBlock.freeInodeCount < 1) {
+				printf("Directory create failed: not enough inode\n");
+				return -1;
+		}
+
+		// get available inode and fill it
+		inodeNum = get_free_inode();
+		if(inodeNum < 0) {
+				printf("Directory error: not enough inode.\n");
+				return -1;
+		}
+		
+		inode[inodeNum].type = directory;
+		inode[inodeNum].owner = 1;
+		inode[inodeNum].group = 2;
+		gettimeofday(&(inode[inodeNum].created), NULL);
+		gettimeofday(&(inode[inodeNum].lastAccess), NULL);
+		inode[inodeNum].size = 1;
+		inode[inodeNum].blockCount = 1;
+		inode[inodeNum].link_count = 1;
+		
+		// add a new file into the current directory entry
+		strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
+		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
+		curDir.dentry[curDir.numEntry].inode = inodeNum;
+		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
+		curDir.numEntry++;
+
+		printf("Dir created.\n");
+		return 0;
+	
 }
 
 int dir_remove(char *name)
@@ -264,7 +308,20 @@ int dir_remove(char *name)
 
 int dir_change(char* name)
 {
-		printf("Not implemented yet.\n");
+		 int inodeNum = search_cur_dir(name);
+    	curDir.numEntry = 1;
+				strncpy(curDir.dentry[0].name, ".", 1);
+				curDir.dentry[0].name[1] = '\0';
+				curDir.dentry[0].inode = inodeNum;
+				strncpy(curDir.dentry[0].name, "..", 1);
+				curDir.dentry[1].name[2] = '\0';
+				curDir.dentry[1].inode = inodeNum;
+				disk_write(curDirBlock, (char*)&curDir);    
+        
+		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
+		curDir.dentry[curDir.numEntry].inode = inodeNum;
+		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
+		curDir.numEntry++;
 }
 
 int ls()
