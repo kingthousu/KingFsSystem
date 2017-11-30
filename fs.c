@@ -161,6 +161,7 @@ int file_create(char *name, int size)
 		curDir.dentry[curDir.numEntry].inode = inodeNum;
 		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
 		curDir.numEntry++;
+		disk_write(curDirBlock, (char*)&curDir); // newly added by kingthousu
 
 		// get data blocks
 		for(i = 0; i < numBlock; i++)
@@ -191,7 +192,7 @@ int file_cat(char *name)
 		}
 		for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
 			disk_read(inode[inodeNum].directBlock[i], buf);
-			printf("%c", buf[i]);
+			printf("%s", buf);
 		}	
 		printf("\n");
 		free(buf);
@@ -253,8 +254,11 @@ int file_remove(char *name)
 }
 
 int dir_make(char* name)
-{		int i;
-		
+
+{
+		int i;
+		int DirBlock = get_free_block();
+		Dentry newDir;
 		int inodeNum = search_cur_dir(name); 
 		if(inodeNum >= 0) {
 		
@@ -280,25 +284,37 @@ int dir_make(char* name)
 				return -1;
 		}
 		
-		inode[inodeNum].type = directory;
-		inode[inodeNum].owner = 1;
-		inode[inodeNum].group = 2;
-		gettimeofday(&(inode[inodeNum].created), NULL);
-		gettimeofday(&(inode[inodeNum].lastAccess), NULL);
-		inode[inodeNum].size = 1;
-		inode[inodeNum].blockCount = 1;
-		inode[inodeNum].link_count = 1;
 		
-		// add a new file into the current directory entry
+		        inode[inodeNum].type =directory;
+				inode[inodeNum].owner = 0;
+				inode[inodeNum].group = 0;
+				gettimeofday(&(inode[inodeNum].created), NULL);
+				gettimeofday(&(inode[inodeNum].lastAccess), NULL);
+				inode[inodeNum].size = 1;
+				inode[inodeNum].blockCount = 1;
+				inode[inodeNum].directBlock[0] = DirBlock;
+
+				newDir.numEntry = 2;
+				
+				strncpy(newDir.dentry[1].name, "..", 2);
+				newDir.dentry[1].name[2] = '\0';
+				newDir.dentry[1].inode = curDir.dentry[0].inode;
+				
+				strncpy(newDir.dentry[0].name, ".", 1);
+				newDir.dentry[0].name[1] = '\0';
+				newDir.dentry[0].inode = inodeNum;
+				disk_write(DirBlock, (char*)&newDir);
+		
+		// add a new directory into the current directory entry
 		strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
 		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
 		curDir.dentry[curDir.numEntry].inode = inodeNum;
 		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
 		curDir.numEntry++;
-
-		printf("Dir created.\n");
+		disk_write(curDirBlock, (char*)&curDir);
 		return 0;
 	
+		printf("Not implemented yet.\n");
 }
 
 int dir_remove(char *name)
@@ -307,26 +323,44 @@ int dir_remove(char *name)
 }
 
 int dir_change(char* name)
-{
-		 int inodeNum = search_cur_dir(name);
-    	curDir.numEntry = 1;
-				strncpy(curDir.dentry[0].name, ".", 1);
-				curDir.dentry[0].name[1] = '\0';
-				curDir.dentry[0].inode = inodeNum;
-				strncpy(curDir.dentry[0].name, "..", 1);
-				curDir.dentry[1].name[2] = '\0';
-				curDir.dentry[1].inode = inodeNum;
-				disk_write(curDirBlock, (char*)&curDir);    
-        
-		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
-		curDir.dentry[curDir.numEntry].inode = inodeNum;
-		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
-		curDir.numEntry++;
+{   
+    int i,DirBlock;
+    int inodeNum = search_cur_dir(name); 
+		if(inodeNum >= 0) {
+		         printf("found directory");
+		        //DirBlock = inode[inodeNum].directBlock[0];
+		        //disk_read(DirBlock, (char*)&curDir);
+		        printf("%d",curDir.numEntry);
+		        
+		        curDirBlock = inode[inodeNum].directBlock[0];
+		        disk_read(curDirBlock, (char*)&curDir);
+		        
+		        printf("%d",curDir.numEntry);
+				//(curDirBlock, (char*)&curDir);
+				/*for (i = 1 ; i < curDir.numEntry ; i++){
+    				strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
+    		        //curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
+    		        curDir.dentry[curDir.numEntry].inode = inodeNum;
+				}
+    		        printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
+				}*/
+
+		
+				return 0;
+		}
+		else {
+		    printf("found not directory");
+		}
+		
+		
+
+		//printf("Not implemented yet.\n");
 }
 
 int ls()
-{
+{       
 		int i;
+		printf("%d \n",curDir.numEntry);
 		for(i = 0; i < curDir.numEntry; i++)
 		{
 				int n = curDir.dentry[i].inode;
