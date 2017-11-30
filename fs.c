@@ -250,7 +250,49 @@ int file_stat(char *name)
 
 int file_remove(char *name)
 {
-		printf("Not implemented yet.\n");
+		int i,fileBlock,numEntry;
+    int inodeNum = search_cur_dir(name); 
+		if(inodeNum >= 0) {
+		
+				if(inode[inodeNum].type != file){
+					printf("Not a file");
+					return -1;
+				}
+		        printf("found directory");		      
+		        printf("%d",curDir.numEntry);
+	        
+		        fileBlock = inode[inodeNum].directBlock[0];
+				for(i = 0 ; i <inode[inodeNum].blockCount   ;i++){
+				    set_bit(blockMap,  fileBlock + i , 0);
+				    superBlock.freeBlockCount++;
+				}
+				set_bit(inodeMap,inodeNum, 0);
+				superBlock.freeInodeCount++;
+				
+		     for(i = 0 ; i <curDir.numEntry ; i++ ){ 
+		        
+		        if(strcmp(curDir.dentry[i].name, name )== 0){
+		            numEntry = i;
+		            break;
+		            
+		        }
+		         
+		     }
+		     for(i = numEntry ; i < curDir.numEntry-1 ; i++ ){
+		            curDir.dentry[i].inode = curDir.dentry[i+1].inode;
+		            strcpy(curDir.dentry[i].name, curDir.dentry[i+1].name);
+		     }
+		        curDir.numEntry--;
+		        disk_write(curDirBlock, (char*)&curDir);
+		        printf("%d",curDir.numEntry);				
+				return 0;
+		}
+		else {
+		    printf("found not directory");
+			return -1;
+		}
+		
+		//printf("Not implemented yet.\n");
 }
 
 int dir_make(char* name)
@@ -271,12 +313,10 @@ int dir_make(char* name)
 				return -1;
 		}
 
-
 		if(superBlock.freeInodeCount < 1) {
 				printf("Directory create failed: not enough inode\n");
 				return -1;
 		}
-
 		// get available inode and fill it
 		inodeNum = get_free_inode();
 		if(inodeNum < 0) {
@@ -293,13 +333,10 @@ int dir_make(char* name)
 				inode[inodeNum].size = 1;
 				inode[inodeNum].blockCount = 1;
 				inode[inodeNum].directBlock[0] = DirBlock;
-
-				newDir.numEntry = 2;
-				
+				newDir.numEntry = 2;				
 				strncpy(newDir.dentry[1].name, "..", 2);
 				newDir.dentry[1].name[2] = '\0';
-				newDir.dentry[1].inode = curDir.dentry[0].inode;
-				
+				newDir.dentry[1].inode = curDir.dentry[0].inode;				
 				strncpy(newDir.dentry[0].name, ".", 1);
 				newDir.dentry[0].name[1] = '\0';
 				newDir.dentry[0].inode = inodeNum;
@@ -319,7 +356,52 @@ int dir_make(char* name)
 
 int dir_remove(char *name)
 {
-		printf("Not implemented yet.\n");
+	int i,DirBlock,numEntry;
+	if(strcmp(".",name) == 0 | strcmp("..",name)==0){
+	    	printf("Cannot delete this directory \n");
+	    	return -1;
+	}
+    int inodeNum = search_cur_dir(name); 
+		if(inodeNum >= 0) {
+		
+				if(inode[inodeNum].type != directory){
+					printf("Not a directory");
+					return -1;
+				}
+		        printf("found directory");		      
+		        printf("%d",curDir.numEntry);
+	        
+		        DirBlock = inode[inodeNum].directBlock[0];
+						set_bit(blockMap,  DirBlock, 0);
+						superBlock.freeBlockCount++;
+				
+				set_bit(inodeMap,inodeNum, 0);
+				superBlock.freeInodeCount++;
+				
+		     for(i = 0 ; i <curDir.numEntry ; i++ ){ 
+		        
+		        if(strcmp(curDir.dentry[i].name, name )== 0){
+		            numEntry = i;
+		            break;
+		            
+		        }
+		         
+		     }
+		     for(i = numEntry ; i < curDir.numEntry-1 ; i++ ){
+		            curDir.dentry[i].inode = curDir.dentry[i+1].inode;
+		            strcpy(curDir.dentry[i].name, curDir.dentry[i+1].name);
+		     }
+		        curDir.numEntry--;
+		        disk_write(curDirBlock, (char*)&curDir);
+		        printf("%d",curDir.numEntry);				
+				return 0;
+		}
+		else {
+		    printf("found not directory");
+			return -1;
+		}
+		
+		//printf("Not implemented yet.\n");
 }
 
 int dir_change(char* name)
@@ -327,29 +409,27 @@ int dir_change(char* name)
     int i,DirBlock;
     int inodeNum = search_cur_dir(name); 
 		if(inodeNum >= 0) {
-		         printf("found directory");
-		        //DirBlock = inode[inodeNum].directBlock[0];
-		        //disk_read(DirBlock, (char*)&curDir);
+		
+				if(inode[inodeNum].type != directory){
+					printf("Not a directory \n");
+					return -1;
+				}
+		        printf("found directory");
+		       
 		        printf("%d",curDir.numEntry);
 		        
 		        curDirBlock = inode[inodeNum].directBlock[0];
 		        disk_read(curDirBlock, (char*)&curDir);
 		        
 		        printf("%d",curDir.numEntry);
-				//(curDirBlock, (char*)&curDir);
-				/*for (i = 1 ; i < curDir.numEntry ; i++){
-    				strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
-    		        //curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
-    		        curDir.dentry[curDir.numEntry].inode = inodeNum;
-				}
-    		        printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
-				}*/
+				
 
 		
 				return 0;
 		}
 		else {
-		    printf("found not directory");
+		    printf(" not found directory");
+			return -1;
 		}
 		
 		
