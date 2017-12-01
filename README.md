@@ -11,6 +11,6 @@ user management.
 # Compile
 
 The program can be compiled using following commad 
- make all
+make all
 
 
