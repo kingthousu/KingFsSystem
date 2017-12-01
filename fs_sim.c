@@ -19,11 +19,12 @@ int main(int argc, char **argv)
 		Inode inot;
 		srand(time(NULL));
 		
-		printf("size %d, %d\n", sizeof(TYPE), sizeof(inot));
 		if(argc < 2) {
 				fprintf(stderr, "usage: ./fs disk_name\n");
 				return -1;
 		}
+	
+		printf("KingFs started");
 		srand (time(NULL));	
 
 		fs_mount(argv[1]);
@@ -32,8 +33,8 @@ int main(int argc, char **argv)
 		{
 				bzero(comm,64); bzero(arg1,16); bzero(arg2,16); bzero(arg3,16); bzero(arg4, LARGE_FILE);
 				int numArg = sscanf(input, "%s %s %s %s %s", comm, arg1, arg2, arg3, arg4);
-				if(command(comm, "quit")) break;
-				else if(command(comm, "exit")) break;
+				if(command(comm, "fquit")) break;
+				else if(command(comm, "fexit")) break;
 				else execute_command(comm, arg1, arg2, arg3, arg4, numArg - 1);
 
 				printf("%% ");
