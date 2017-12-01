@@ -15,4 +15,4 @@ The program can be compiled using commad
 
 # Execution
 
-The program can be executed by caommand "fs_sim diskname" . This will create a filesystem with name "diskname". If "diskname" already created before then it will load the same file system into memory.
+The program can be executed by command "fs_sim diskname" . This will create a filesystem with name "diskname". If "diskname" already created before then it will load the same file system into memory.
