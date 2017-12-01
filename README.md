@@ -10,7 +10,7 @@ user management.
 
 # Compile
 
-The program can be compiled using following commad 
-make all
+The program can be compiled using commad 
+"make all"
 
 
