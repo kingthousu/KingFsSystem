@@ -8,3 +8,10 @@ UNIX file systems, but it does not include per-process open file table, permissi
 user management.
 
 
+# Compile
+
+ The program can be compiled using following commad 
+
+ make all
+
+
