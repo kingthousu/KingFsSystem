@@ -16,15 +16,15 @@ int main(int argc, char **argv)
 		char input[64+16+16+16+LARGE_FILE];
 		char comm[64], arg1[16], arg2[16], arg3[16], arg4[LARGE_FILE];
 		
-		Inode inot;
+		//Inode inot;
 		srand(time(NULL));
+		
+		//printf("size %d, %d\n", sizeof(TYPE), sizeof(inot));  //commented by KingThousu
 		
 		if(argc < 2) {
 				fprintf(stderr, "usage: ./fs disk_name\n");
 				return -1;
 		}
-	
-		printf("KingFs started");
 		srand (time(NULL));	
 
 		fs_mount(argv[1]);
@@ -41,5 +41,6 @@ int main(int argc, char **argv)
 		}
 		
 		fs_umount(argv[1]);
+		return 0;
 }
 

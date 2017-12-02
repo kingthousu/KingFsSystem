@@ -339,6 +339,7 @@ int dir_make(char* name)
 				gettimeofday(&(inode[inodeNum].lastAccess), NULL);
 				inode[inodeNum].size = 1;
 				inode[inodeNum].blockCount = 1;
+				inode[inodeNum].link_count = 1;
 				inode[inodeNum].directBlock[0] = DirBlock;
 				newDir.numEntry = 2;				
 				strncpy(newDir.dentry[1].name, "..", 2);
@@ -471,21 +472,21 @@ int hard_link(char *src, char *dest)
 
 		int inodeNum = search_cur_dir(dest); 
 		if(inodeNum >= 0) {
-				printf("File link failed:  %s already exist.\n", dest);
+				printf("Hard link failed:  %s already exist.\n", dest);
 				return -1;
 		}
 		inodeNum = search_cur_dir(src); 
 		if(inodeNum < 0) {
-				printf("File link failed:  %s not exist.\n", src);
+				printf("Hard link failed:  %s not exist.\n", src);
 				return -1;
 		}
 		if(curDir.numEntry + 1 >= (BLOCK_SIZE / sizeof(DirectoryEntry))) {
-				printf("File create failed: directory is full!\n");
+				printf("Hard link failed: directory is full!\n");
 				return -1;
 		}
 
 		if(superBlock.freeInodeCount < 1) {
-				printf("File create failed: not enough inode\n");
+				printf("Hard link  failed: not enough inode\n");
 				return -1;
 		}
 
@@ -504,7 +505,7 @@ int hard_link(char *src, char *dest)
 
 
 
-		printf("file linking done: %s, inode %d\n", dest, inodeNum);
+		printf("Hard link success: %s, inode %d\n", dest, inodeNum);
 
 		return 0;
 		//printf("Not implemented yet.\n");
