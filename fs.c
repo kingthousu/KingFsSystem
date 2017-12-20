@@ -94,7 +94,6 @@ int fs_umount(char *name)
 
 int search_cur_dir(char *name)
 {
-		// return inode. If not exist, return -1
 		int i;
 
 		for(i = 0; i < curDir.numEntry; i++)
@@ -108,8 +107,8 @@ int file_create(char *name, int size)
 {
 		int i;
 
-		if(size >= SMALL_FILE) {
-				printf("Do not support files larger than %d bytes yet.\n", SMALL_FILE);
+		if(size >= LARGE_FILE) {
+				printf("Do not support files larger than %d bytes yet.\n", LARGE_FILE);
 				return -1;
 		}
 
@@ -137,10 +136,10 @@ int file_create(char *name, int size)
 				return -1;
 		}
 
-		char *tmp = (char*) malloc(sizeof(int) * size+1);
+		char *tmp = (char*) malloc(sizeof(int) * size);
 
 		rand_string(tmp, size);
-		printf("rand_string = %s\n", tmp);
+		printf("rand_string =\n%s\n", tmp);
 		
 		// get available inode and fill it
 		inodeNum = get_free_inode();
@@ -162,70 +161,327 @@ int file_create(char *name, int size)
 		strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
 		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
 		curDir.dentry[curDir.numEntry].inode = inodeNum;
-		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
 		curDir.numEntry++;
 		disk_write(curDirBlock, (char*)&curDir); // newly added by kingthousu
 
 		// get data blocks
-		for(i = 0; i < numBlock; i++)
-		{
-				int block = get_free_block();
-				if(block == -1) {
-						printf("File_create error: get_free_block failed\n");
-						return -1;
-				}
-				inode[inodeNum].directBlock[i] = block;
-				disk_write(block, tmp+(i*BLOCK_SIZE));
+		if(numBlock <= 10){  
+			// for small files
+			for(i = 0; i < numBlock; i++)
+			{
+					int block = get_free_block();
+					if(block == -1) {
+							printf("File_create error: get_free_block failed\n");
+							return -1;
+					}
+					inode[inodeNum].directBlock[i] = block;
+					disk_write(block, tmp+(i*BLOCK_SIZE));
+			}
+		} else{	
+			// for large files
+			int block = get_free_block();
+			int pos;
+			inode[inodeNum].directBlock[9] = block;
+			inode[inodeNum].indirectBlock = 1;
+			for(i = 0; i < numBlock; i++)
+			{		
+					if(i < 9){
+						block = get_free_block();
+						if(block == -1) {
+								printf("File_create error: get_free_block failed\n");
+								return -1;
+						}
+						inode[inodeNum].directBlock[i] = block;
+						disk_write(block, tmp+(i*BLOCK_SIZE));
+					}else{
+
+						block = get_free_block();
+						if(block == -1) {
+								printf("File_create error: get_free_block failed\n");
+								return -1;
+						}
+						pos = (i-9)*4;
+						m_write(inode[inodeNum].directBlock[9], &block , pos);
+						disk_write(block, tmp+(i*BLOCK_SIZE));
+					}
+					
+			}
+		}
+		printf("file created: %s, inode %d, size %d\n", name, inodeNum, size);
+		free(tmp);
+		return 0;
+}
+int m_file_create(char *name, char * tmp)
+{
+		int i;
+		int inodeNum = search_cur_dir(name); 
+		int size =strlen(tmp);
+		if(inodeNum >= 0) {
+				printf("File create failed:  %s exist.\n", name);
+				return -1;
+		}
+		if(curDir.numEntry + 1 >= (BLOCK_SIZE / sizeof(DirectoryEntry))) {
+				printf("File create failed: directory is full!\n");
+				return -1;
+		}
+        if(size >= LARGE_FILE) {
+				printf("Do not support files larger than %d bytes yet.\n", LARGE_FILE);
+				return -1;
+		}
+		int numBlock = strlen(tmp) / BLOCK_SIZE;
+		if(size % BLOCK_SIZE > 0) numBlock++;
+		if(numBlock > superBlock.freeBlockCount) {
+				printf("File create failed: not enough space\n");
+				return -1;
+		}
+		if(superBlock.freeInodeCount < 1) {
+				printf("File create failed: not enough inode\n");
+				return -1;
+		}
+		// get available inode and fill it
+		inodeNum = get_free_inode();
+		if(inodeNum < 0) {
+				printf("File_create error: not enough inode.\n");
+				return -1;
+		}	
+		inode[inodeNum].type = file;
+		inode[inodeNum].owner = 1;
+		inode[inodeNum].group = 2;
+		gettimeofday(&(inode[inodeNum].created), NULL);
+		gettimeofday(&(inode[inodeNum].lastAccess), NULL);
+		inode[inodeNum].size = size;
+		inode[inodeNum].blockCount = numBlock;
+		inode[inodeNum].link_count = 1;
+		
+		// add a new file into the current directory entry
+		strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
+		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
+		curDir.dentry[curDir.numEntry].inode = inodeNum;
+		curDir.numEntry++;
+		disk_write(curDirBlock, (char*)&curDir); // newly added by kingthousu
+
+		// get data blocks
+		if(numBlock <= 10){
+			// for small files
+			for(i = 0; i < numBlock; i++)
+			{
+					int block = get_free_block();
+					if(block == -1) {
+							printf("File_create error: get_free_block failed\n");
+							return -1;
+					}
+					inode[inodeNum].directBlock[i] = block;
+					disk_write(block, tmp+(i*BLOCK_SIZE));
+			}
+		}else{	
+			// for large files
+			int block = get_free_block();
+			int pos;
+			inode[inodeNum].directBlock[9] = block;
+			inode[inodeNum].indirectBlock = 1;
+			for(i = 0; i < numBlock; i++)
+			{		
+					if(i < 9){
+						block = get_free_block();
+						if(block == -1) {
+								printf("File_create error: get_free_block failed\n");
+								return -1;
+						}
+						inode[inodeNum].directBlock[i] = block;
+						disk_write(block, tmp+(i*BLOCK_SIZE));
+					}else{
+
+						block = get_free_block();
+						if(block == -1) {
+								printf("File_create error: get_free_block failed\n");
+								return -1;
+						}
+						pos = (i-9)*4;
+						m_write(inode[inodeNum].directBlock[9], &block , pos);
+						disk_write(block, tmp+(i*BLOCK_SIZE));
+					}
+					
+			}
 		}
 
 		printf("file created: %s, inode %d, size %d\n", name, inodeNum, size);
 
-		free(tmp);
 		return 0;
 }
 
 int file_cat(char *name)
 {
 		int i;
-		char* buf = malloc(sizeof(char)*BLOCK_SIZE);
+		char buf[512];
 		int inodeNum = search_cur_dir(name);
 		if(inodeNum < 0) {
 				printf("file cat error: file is not exist.\n");
 				return -1;
 		}
-		for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
-			disk_read(inode[inodeNum].directBlock[i], buf);
-			printf("%s", buf);
-		}	
+		if(inode[inodeNum].type != file){
+				printf("file cat error: %s is not a file.\n",name);
+				return -1;
+		}
+		if (inode[inodeNum].indirectBlock != 1){
+			// for small files
+			for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
+				disk_read(inode[inodeNum].directBlock[i], buf);
+				buf[BLOCK_SIZE] ='\0';
+				printf("%s", buf);
+			}
+		}
+		else{
+			// for large files
+			int block,pos;
+			inode[inodeNum].indirectBlock = 1;
+			for(i = 0; i < inode[inodeNum].blockCount; i++)
+			{		
+					if(i < 9){
+						disk_read(inode[inodeNum].directBlock[i], buf);
+						buf[BLOCK_SIZE] ='\0';
+						printf("%s", buf);
+						
+					}else{
+						pos = (i-9)*4;
+						m_read(&block ,inode[inodeNum].directBlock[9], pos);
+						disk_read(block, buf);
+						buf[BLOCK_SIZE] ='\0';
+						printf("%s", buf);
+					}
+			}
+		}
+			
 		printf("\n");
-		free(buf);
 }
 
 int file_read(char *name, int offset, int size)
 {		
-        int i;
-		char* buf = malloc(sizeof(char)*BLOCK_SIZE);
-		int inodeNum = search_cur_dir(name);
-		if(inodeNum < 0) {
-				printf("file cat error: file is not exist.\n");
+       	int i;
+		int inodeNum ;
+		char readbuf[LARGE_FILE];
+		if((offset+size) >= LARGE_FILE) {
+				printf("Do not support files larger than %d bytes yet.\n", LARGE_FILE);
 				return -1;
 		}
-		for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
-			if(i != 0){
-				buf = realloc(buf , sizeof(char) * BLOCK_SIZE * i);
-			}
-			disk_read(inode[inodeNum].directBlock[i], buf);
+        inodeNum = search_cur_dir(name);
+		if(inodeNum < 0) {
+				printf("file write error: file is not exist.\n");
+				return -1;
 		}
-		for(i = offset; i <= size ; i++ ){
-			printf("%c", buf[i]);
+		if (inode[inodeNum].indirectBlock != 1){
+			// for small files
+			for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
+				
+				disk_read(inode[inodeNum].directBlock[i], &readbuf[BLOCK_SIZE * i]);
+				
+			}
+		}
+		else{
+			// for large files
+			int block,pos;
+			for(i = 0; i < inode[inodeNum].blockCount; i++)
+			{		
+					if(i < 9){
+						
+						disk_read(inode[inodeNum].directBlock[i], &readbuf[BLOCK_SIZE * i]);
+					}
+					else{
+						pos = (i-9)*4;
+						m_read(&block ,inode[inodeNum].directBlock[9], pos);
+						disk_read(block, &readbuf[BLOCK_SIZE * i]);
+					}
+			}
+		}
+	
+		for(i = offset; i <offset+size ; i++ ){
+			printf("%c", readbuf[i]);
 		}
 		printf("\n");
-		free(buf);
+        return 0;
 }
 
 int file_write(char *name, int offset, int size, char *buf)
-{	
-		printf("Not implemented yet.\n");
+{		
+		int i;
+		char readbuf[LARGE_FILE] ;
+		int inodeNum ;
+
+		if (strlen(buf) < size ){
+			printf("Write error : input string length is less than the size arg \n");
+				return -1;
+		}
+		if((offset+size) >= LARGE_FILE) {
+				printf("Do not support files larger than %d bytes yet.\n", LARGE_FILE);
+				return -1;
+		}
+		
+        inodeNum = search_cur_dir(name);
+		if(inodeNum < 0) {
+				printf("file write error: file is not exist.\n");
+				return -1;
+		}
+		if (inode[inodeNum].indirectBlock != 1){
+			// for small files
+			for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
+				
+				disk_read(inode[inodeNum].directBlock[i], &readbuf[BLOCK_SIZE * i]);
+				
+			}
+		}
+		else{
+			// for large files
+			int block,pos;
+			
+			for(i = 0; i < inode[inodeNum].blockCount; i++)
+			{		
+					if(i < 9){
+						
+						disk_read(inode[inodeNum].directBlock[i], &readbuf[BLOCK_SIZE * i]);
+				
+					}
+					else{
+						pos = (i-9)*4;
+						m_read(&block ,inode[inodeNum].directBlock[9], pos);
+						disk_read(block, &readbuf[BLOCK_SIZE * i]);
+				
+					}
+			}
+		}
+		
+		for(i = 0; i < size ; i++ ){
+			 readbuf[offset+i] = buf[i];
+		}
+		
+		if (inode[inodeNum].indirectBlock != 1){
+			// for small files
+			for(i = 0 ; i < inode[inodeNum].blockCount ; i++){
+				disk_write(inode[inodeNum].directBlock[i], &readbuf[BLOCK_SIZE * i]);
+			}
+		}
+		else{
+			// for large files
+			int block,pos;		
+			for(i = 0; i < inode[inodeNum].blockCount; i++)
+			{		
+					if(i < 9){
+
+						disk_write(inode[inodeNum].directBlock[i], &readbuf[BLOCK_SIZE * i]);
+			         
+					}
+					else{
+						pos = (i-9)*4;
+						m_read(&block ,inode[inodeNum].directBlock[9], pos);
+						disk_write(block, &readbuf[BLOCK_SIZE * i]);
+					
+					}
+			}
+		}
+		printf("\n");
+		//alternate way
+		/*file_remove(name);  
+		m_file_create(name  , readbuf);*/
+		
+        return 0;
 }
 
 int file_stat(char *name)
@@ -254,33 +510,51 @@ int file_stat(char *name)
 int file_remove(char *name)
 {
 		int i,fileBlock,numEntry;
-    int inodeNum = search_cur_dir(name); 
+                int inodeNum = search_cur_dir(name); 
 		if(inodeNum >= 0) {
 		
 				if(inode[inodeNum].type != file){
 					printf("Not a file");
 					return -1;
 				}
-		       //  printf("found directory");		      
-		       // printf("%d",curDir.numEntry);
-		  if( inode[inodeNum].link_count == 1){
-	        
-		        fileBlock = inode[inodeNum].directBlock[0];
+		    
+		if( inode[inodeNum].link_count == 1){
+	        	if(inode[inodeNum].indirectBlock != 1){
+		        	fileBlock = inode[inodeNum].directBlock[0];
 				for(i = 0 ; i <inode[inodeNum].blockCount   ;i++){
 				    set_bit(blockMap,  fileBlock + i , 0);
 				    superBlock.freeBlockCount++;
 				}
-				set_bit(inodeMap,inodeNum, 0);
-				superBlock.freeInodeCount++;
-		  }else {
+				
+			}else{
+				fileBlock = inode[inodeNum].directBlock[0];
+				for(i = 0 ; i <inode[inodeNum].blockCount   ;i++){
+				    
+					if(i < 9){
+						set_bit(blockMap,  fileBlock + i , 0);
+				    		superBlock.freeBlockCount++;
+					}else{
+
+						int pos = (i-9)*4;
+						m_read(&fileBlock ,inode[inodeNum].directBlock[9], pos);
+						set_bit(blockMap,  fileBlock , 0);
+				    		superBlock.freeBlockCount++;
+						
+					}				
+				}
+				
+			}
+			set_bit(inodeMap,inodeNum, 0);
+			superBlock.freeInodeCount++;
+		}else {
 		      inode[inodeNum].link_count--;
-		  }
-		     for(i = 0 ; i <curDir.numEntry ; i++ ){ 
+		}
+		
+		for(i = 0 ; i <curDir.numEntry ; i++ ){ 
 		        
 		        if(strcmp(curDir.dentry[i].name, name )== 0){
 		            numEntry = i;
-		            break;
-		            
+		            break;	            
 		        }
 		         
 		     }
@@ -290,16 +564,14 @@ int file_remove(char *name)
 		     }
 		        curDir.numEntry--;
 		        disk_write(curDirBlock, (char*)&curDir);
-		        //printf("%d",curDir.numEntry);		
+		     	
 				printf("%s file deleted sucessfully",name);		
 				return 0;
 		}
 		else {
 		    printf(" File not exist");
 			return -1;
-		}
-		
-		//printf("Not implemented yet.\n");
+		}	
 }
 
 int dir_make(char* name)
@@ -324,14 +596,12 @@ int dir_make(char* name)
 				printf("Directory create failed: not enough inode\n");
 				return -1;
 		}
-		// get available inode and fill it
+		
 		inodeNum = get_free_inode();
 		if(inodeNum < 0) {
 				printf("Directory error: not enough inode.\n");
 				return -1;
 		}
-		
-		
 		        inode[inodeNum].type =directory;
 				inode[inodeNum].owner = 0;
 				inode[inodeNum].group = 0;
@@ -354,7 +624,6 @@ int dir_make(char* name)
 		strncpy(curDir.dentry[curDir.numEntry].name, name, strlen(name));
 		curDir.dentry[curDir.numEntry].name[strlen(name)] = '\0';
 		curDir.dentry[curDir.numEntry].inode = inodeNum;
-		printf("curdir %s, name %s\n", curDir.dentry[curDir.numEntry].name, name);
 		curDir.numEntry++;
 		disk_write(curDirBlock, (char*)&curDir);
 		return 0;
@@ -375,10 +644,7 @@ int dir_remove(char *name)
 				if(inode[inodeNum].type != directory){
 					printf("Not a directory");
 					return -1;
-				}
-		       // printf("found directory");		      
-		       // printf("%d",curDir.numEntry);
-	        
+				}     
 		        DirBlock = inode[inodeNum].directBlock[0];
 				set_bit(blockMap,  DirBlock, 0);
 				superBlock.freeBlockCount++;
@@ -402,7 +668,7 @@ int dir_remove(char *name)
 		        curDir.numEntry--;
 		        disk_write(curDirBlock, (char*)&curDir);
 				printf("%s directory deleted sucessfully",name);
-		        //printf("%d",curDir.numEntry);				
+		        			
 				return 0;
 		}
 		else {
@@ -410,7 +676,6 @@ int dir_remove(char *name)
 			return -1;
 		}
 		
-		//printf("Not implemented yet.\n");
 }
 
 int dir_change(char* name)
@@ -418,37 +683,23 @@ int dir_change(char* name)
     int i,DirBlock;
     int inodeNum = search_cur_dir(name); 
 		if(inodeNum >= 0) {
-		
 				if(inode[inodeNum].type != directory){
 					printf("Not a directory \n");
 					return -1;
-				}
-		        //printf("found directory");
-		        //printf("%d",curDir.numEntry);
-		        
+				}  
 		        curDirBlock = inode[inodeNum].directBlock[0];
 		        disk_read(curDirBlock, (char*)&curDir);
-		        
-		        //printf("%d",curDir.numEntry);
-				
-
-		
 				return 0;
-		}
-		else {
-		    printf(" not found directory");
+		}else {
+		    printf("directory not found ");
 			return -1;
-		}
-		
-		
+		}	
 
-		//printf("Not implemented yet.\n");
 }
 
 int ls()
 {       
 		int i;
-		//printf("%d \n",curDir.numEntry);
 		for(i = 0; i < curDir.numEntry; i++)
 		{
 				int n = curDir.dentry[i].inode;
@@ -456,14 +707,13 @@ int ls()
 				else printf("type: dir, ");
 				printf("name \"%s\", inode %d, size %d byte\n", curDir.dentry[i].name, curDir.dentry[i].inode, inode[n].size);
 		}
-
 		return 0;
 }
 
 int fs_stat()
 {
 		printf("File System Status: \n");
-		printf("# of free blocks: %d (%d bytes), # of free inodes: %d\n", superBlock.freeBlockCount, superBlock.freeBlockCount*512, superBlock.freeInodeCount);
+		printf("#No of free blocks: %d (%d bytes), #No of free inodes: %d\n", superBlock.freeBlockCount, superBlock.freeBlockCount*512, 			superBlock.freeInodeCount);
 }
 
 int hard_link(char *src, char *dest)
@@ -525,7 +775,7 @@ int execute_command(char *comm, char *arg1, char *arg2, char *arg3, char *arg4, 
 						return -1;
 				}
 				return file_cat(arg1); // file_cat(filename)
-		} else if(command(comm, "write")) {
+		}else if(command(comm, "write")) {
 				if(numArg < 4) {
 						printf("error: write <filename> <offset> <size> <buf>\n");
 						return -1;
